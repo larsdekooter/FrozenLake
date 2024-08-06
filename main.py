@@ -43,6 +43,7 @@ class Network:
             return env.action_space.sample()
         else:
             with torch.no_grad():
+                print('x')
                 return self.model(torch.tensor(state)).argmax().item()
 
     def train(self, state, nextState, action, reward, done):
