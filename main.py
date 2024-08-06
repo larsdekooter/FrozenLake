@@ -39,7 +39,7 @@ class Network:
     def getAction(self, state):
         epsilon = 0.1 + 0.9 * np.exp(-1e-5 * self.steps)
         self.steps += 1
-        if np.random.random() < epsilon:
+        if np.random.random() > epsilon:
             return env.action_space.sample()
         else:
             with torch.no_grad():
