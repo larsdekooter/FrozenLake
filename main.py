@@ -69,12 +69,12 @@ class Network:
         pred = self.model(states)
 
         target = pred.clone()
-        for idx in range(len(done)):
-            Qnew = reward[idx]
-            if not done[idx]:
-                Qnew = reward[idx] + 0.99 * torch.max(self.model(nextState[idx]))
+        for idx in range(len(dones)):
+            Qnew = rewards[idx]
+            if not dones[idx]:
+                Qnew = rewards[idx] + 0.99 * torch.max(self.model(nextStates[idx]))
             
-            target[idx][torch.argmax(action[idx]).item()] = Qnew
+            target[idx][torch.argmax(actions[idx]).item()] = Qnew
         
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
