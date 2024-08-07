@@ -66,15 +66,21 @@ class Network:
         rewards = torch.tensor(rewards)
         dones = torch.tensor(dones, dtype=torch.int64)
 
-        qValues = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        nextQValues = self.targetModel(nextStates).max(1)[0]
-        targetQValues = rewards + (0.99 * nextQValues * (1 - dones))
+        pred = self.model(state)
 
-        loss = self.criterion(qValues, targetQValues.detach())
-
+        target = pred.clone()
+        for idx in range(len(done)):
+            Qnew = reward[idx]
+            if not done[idx]:
+                Qnew = reward[idx] + 0.99 * torch.max(self.model(nextState[idx]))
+            
+            target[idx][torch.argmax(action[idx]).item()] = Qnew
+        
         self.optimizer.zero_grad()
+        loss = self.criterion(target, pred)
         loss.backward()
         self.optimizer.step()
+
 
     def updateTarget(self):
         self.targetModel.load_state_dict(self.model.state_dict())
