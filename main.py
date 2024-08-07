@@ -35,13 +35,17 @@ class Network:
         self.memory = deque([], maxlen=100_000)
         self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4)
         self.criterion = nn.SmoothL1Loss()
+        self.networkSteps = 0
+        self.randomSteps = 0
 
     def getAction(self, state):
         epsilon = 0.1 + 0.9 * np.exp(-1e-5 * self.steps)
         self.steps += 1
         if np.random.random() < epsilon:
+            self.randomSteps += 1
             return env.action_space.sample()
         else:
+            self.networkSteps += 1
             with torch.no_grad():
                 return self.model(torch.tensor([state], dtype=torch.float)).argmax().item()
 
@@ -98,8 +102,11 @@ while True:
     state = nextState
 
     if truncated or terminated:
+        networkSteps, randomSteps = network.networkSteps, network.randomSteps
+        network.networkSteps = 0
+        network.randomSteps = 0
         ngames += 1
-        print(ngames, network.steps)
+        print(ngames, network.steps, round(networkSteps / (networkSteps + randomSteps) * 100.0, 2))
         if ngames % 10 == 0:
             network.updateTarget()
         state, info = env.reset()
