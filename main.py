@@ -65,6 +65,8 @@ class Network:
         actions = torch.tensor(actions)
         rewards = torch.tensor(rewards)
         dones = torch.tensor(dones, dtype=torch.int64)
+        print(state)
+        exit()
 
         pred = self.model(state)
 
