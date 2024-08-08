@@ -11,6 +11,7 @@ env = gym.make(
     "FrozenLake-v1", desc=None, map_name="4x4", is_slippery=False, render_mode="human"
 )
 
+env.metadata['render_fps'] = 10000
 
 state, info = env.reset()
 
