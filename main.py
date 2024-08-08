@@ -40,7 +40,7 @@ class Network:
         self.randomSteps = 0
 
     def getAction(self, state):
-        epsilon = 0.1 + 0.9 * np.exp(-1e-5 * self.steps)
+        epsilon = 0.1 + 0.9 * np.exp(-1e-4 * self.steps)
         self.steps += 1
         if np.random.random() < epsilon:
             self.randomSteps += 1
@@ -48,6 +48,7 @@ class Network:
         else:
             self.networkSteps += 1
             with torch.no_grad():
+                self.model.eval()
                 return self.model(torch.tensor([state], dtype=torch.float)).argmax().item()
 
     def train(self, state, nextState, action, reward, done):
@@ -70,7 +71,7 @@ class Network:
         actions = torch.tensor(actions)
         rewards = torch.tensor(rewards)
         dones = torch.tensor(dones, dtype=torch.int64)
-
+        self.model.train()
         pred = self.model(states)
 
         target = pred.clone()
