@@ -1,6 +1,6 @@
 import gymnasium as gym
-import torch.nn as nn
 import torch
+import torch.nn as nn
 from collections import deque
 import torch.optim as optim
 import numpy as np
@@ -15,7 +15,7 @@ env.metadata['render_fps'] = 10000
 
 state, info = env.reset()
 
-BATCH_SIZE = 64
+BATCH_SIZE = 10
 
 
 class DQN(nn.Module):
@@ -35,7 +35,7 @@ class Network:
         self.steps = 0
         self.memory = deque([], maxlen=100_000)
         self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4)
-        self.criterion = nn.SmoothL1Loss()
+        self.criterion = nn.MSELoss()
         self.networkSteps = 0
         self.randomSteps = 0
 
@@ -66,27 +66,30 @@ class Network:
         batch = random.sample(self.memory, BATCH_SIZE)
         states, nextStates, actions, rewards, dones = zip(*batch)
 
-        states = torch.tensor(states, dtype=torch.float32).unsqueeze(1)
-        nextStates = torch.tensor(nextStates, dtype=torch.float32).unsqueeze(1)
-        actions = torch.tensor(actions)
-        rewards = torch.tensor(rewards)
-        dones = torch.tensor(dones, dtype=torch.int64)
-        self.model.train()
-        pred = self.model(states)
+        states = torch.tensor(states, dtype=torch.float).unsqueeze(1)
+        nextStates = torch.tensor(nextStates, dtype=torch.float).unsqueeze(1)
+        actions = torch.tensor(actions, dtype=torch.long)
+        rewards = torch.tensor(rewards, dtype=torch.float)
+        dones = torch.tensor(dones, dtype=torch.bool)
 
-        target = pred.clone()
-        for idx in range(len(dones)):
-            Qnew = rewards[idx]
-            if not dones[idx]:
-                Qnew = rewards[idx] + 0.99 * torch.max(self.model(nextStates[idx]))
-            
-            target[idx][torch.argmax(actions[idx]).item()] = Qnew
-        
+        qvalues = self.model(states)
+        qvalues = qvalues.gather(1, actions.unsqueeze(1)).sqeeuze()
+
+        nextQValues = self.targetModel(nextStates).detach().max(1)[0]
+        targets = rewards + (self.gamma * nextQValues * (1 - dones))
+
+        loss = self.criterion(qvalues, targets)
+
         self.optimizer.zero_grad()
-        loss = self.criterion(target, pred)
         loss.backward()
         self.optimizer.step()
 
+        
+
+
+
+        
+        
 
     def updateTarget(self):
         self.targetModel.load_state_dict(self.model.state_dict())

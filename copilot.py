@@ -9,7 +9,9 @@ parser.add_argument("eps")
 args = parser.parse_args()
 
 # Initialize the FrozenLake environment
-env = gym.make('FrozenLake-v1', is_slippery=False)
+env = gym.make('FrozenLake-v1', is_slippery=False, render_mode="human")
+
+env.metadata["render_fps"] = 1000000
 
 # Set parameters
 learning_rate = 0.8
@@ -45,11 +47,14 @@ for i in tqdm.tqdm(range(num_episodes)):
 
 
 
-done = False
-env.close()
-env = gym.make('FrozenLake-v1', is_slippery=False, render_mode="human")
-state, _ = env.reset()
-while not done:
-    action = choose_action(state, False)
-    state, reward, terminated, truncated, _ = env.step(action)
-    done = terminated or truncated
+# done = False
+# env.close()
+# env = gym.make('FrozenLake-v1', is_slippery=False, render_mode="human")
+# state, _ = env.reset()
+
+# env.metadata["render_fps"] = 1
+
+# while not done:
+#     action = choose_action(state, False)
+#     state, reward, terminated, truncated, _ = env.step(action)
+#     done = terminated or truncated
