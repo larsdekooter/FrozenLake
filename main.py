@@ -8,7 +8,7 @@ import random
 
 
 env = gym.make(
-    "FrozenLake-v1", desc=None, map_name="4x4", is_slippery=False, render_mode="human"
+    "FrozenLake-v1", desc=None, map_name="4x4", is_slippery=False, #render_mode="human"
 )
 
 env.metadata['render_fps'] = 10000
@@ -97,15 +97,39 @@ class Network:
 
 network = Network()
 ngames = 0
-while True:
+for i in range(100000):
 
     action = network.getAction(state)
     nextState, reward, terminated, truncated, info = env.step(action)
 
-    network.train(state, nextState, action, reward, terminated or truncated)
+    network.train(state, nextState, action, reward, terminated)
 
     state = nextState
 
+    if truncated or terminated:
+        networkSteps, randomSteps = network.networkSteps, network.randomSteps
+        network.networkSteps = 0
+        network.randomSteps = 0
+        ngames += 1
+        print(ngames, network.steps, round(networkSteps / (networkSteps + randomSteps) * 100.0, 2))
+        if ngames % 10 == 0:
+            network.updateTarget()
+        state, info = env.reset()
+
+
+env.close()
+env = gym.make(
+    "FrozenLake-v1", desc=None, map_name="4x4", is_slippery=False, #render_mode="human"
+)
+state, _ = env.reset()
+
+while True:
+    action = network.getAction(state)
+    nextState, reward, terminated, truncated, info = env.step(action)
+
+    network.train(state, nextState, action, reward, terminated)
+
+    state = nextState
     if truncated or terminated:
         networkSteps, randomSteps = network.networkSteps, network.randomSteps
         network.networkSteps = 0
