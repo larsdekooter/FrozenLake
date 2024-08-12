@@ -76,7 +76,7 @@ class Network:
         qvalues = qvalues.gather(1, actions.unsqueeze(1)).squeeze()
 
         nextQValues = self.targetModel(nextStates).detach().max(1)[0]
-        targets = rewards + (self.gamma * nextQValues * (1 - dones))
+        targets = rewards + (0.99 * nextQValues * (1 - dones))
 
         loss = self.criterion(qvalues, targets)
 
