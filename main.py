@@ -70,7 +70,7 @@ class Network:
         nextStates = torch.tensor(nextStates, dtype=torch.float).unsqueeze(1)
         actions = torch.tensor(actions, dtype=torch.long)
         rewards = torch.tensor(rewards, dtype=torch.float)
-        dones = torch.tensor(dones, dtype=torch.bool)
+        dones = torch.tensor(dones, dtype=torch.int)
 
         qvalues = self.model(states)
         qvalues = qvalues.gather(1, actions.unsqueeze(1)).squeeze()
