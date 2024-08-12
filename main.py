@@ -40,7 +40,7 @@ class Network:
         self.randomSteps = 0
 
     def getAction(self, state):
-        epsilon = 0.1 + 0.9 * np.exp(-1e-4 * self.steps)
+        epsilon = 0.0001 + 0.9 * np.exp(-1e-4 * self.steps)
         self.steps += 1
         if np.random.random() < epsilon:
             self.randomSteps += 1
