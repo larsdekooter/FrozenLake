@@ -73,7 +73,7 @@ class Network:
         dones = torch.tensor(dones, dtype=torch.bool)
 
         qvalues = self.model(states)
-        qvalues = qvalues.gather(1, actions.unsqueeze(1)).sqeeuze()
+        qvalues = qvalues.gather(1, actions.unsqueeze(1)).squeeze()
 
         nextQValues = self.targetModel(nextStates).detach().max(1)[0]
         targets = rewards + (self.gamma * nextQValues * (1 - dones))
@@ -84,7 +84,7 @@ class Network:
         loss.backward()
         self.optimizer.step()
 
-        
+
 
 
 
