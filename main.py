@@ -5,6 +5,7 @@ from collections import deque
 import torch.optim as optim
 import numpy as np
 import random
+import tqdm
 
 
 env = gym.make(
@@ -97,7 +98,7 @@ class Network:
 
 network = Network()
 ngames = 0
-for i in range(100000):
+for i in tqdm.trange(100000):
 
     action = network.getAction(state)
     nextState, reward, terminated, truncated, info = env.step(action)
@@ -111,7 +112,7 @@ for i in range(100000):
         network.networkSteps = 0
         network.randomSteps = 0
         ngames += 1
-        print(ngames, network.steps, round(networkSteps / (networkSteps + randomSteps) * 100.0, 2))
+        # print(ngames, network.steps, round(networkSteps / (networkSteps + randomSteps) * 100.0, 2))
         if ngames % 10 == 0:
             network.updateTarget()
         state, info = env.reset()
