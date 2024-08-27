@@ -1,142 +1,170 @@
+# Deep Q Learning / Frozen Lake / Not Slippery / 4x4
 import gymnasium as gym
-import torch
-import torch.nn as nn
-from collections import deque
-import torch.optim as optim
 import numpy as np
 import random
-import tqdm
+import matplotlib.pyplot as plt
+import matplotlib
+import warnings
+
+warnings.filterwarnings("ignore")
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+from collections import deque
+
+from keras import optimizers, layers, models
+
+custom_map = ["FFFF", "FHFH", "FFFH", "HFFG"]
+
+env = gym.make("FrozenLake-v0", desc=custom_map, is_slippery=False)
+train_episodes = 4000
+test_episodes = 100
+max_steps = 300
+state_size = env.observation_space.n
+action_size = env.action_space.n
+batch_size = 32
 
 
-env = gym.make(
-    "FrozenLake-v1", desc=None, map_name="4x4", is_slippery=False, #render_mode="human"
-)
+class Agent:
+    def __init__(self, state_size, action_size):
+        self.memory = deque(maxlen=2500)
+        self.learning_rate = 0.001
+        self.epsilon = 1
+        self.max_eps = 1
+        self.min_eps = 0.01
+        self.eps_decay = 0.001 / 3
+        self.gamma = 0.9
+        self.state_size = state_size
+        self.action_size = action_size
+        self.epsilon_lst = []
+        self.model = self.buildmodel()
 
-env.metadata['render_fps'] = 10000
+    def buildmodel(self):
+        model = models.Sequential()
+        model.add(layers.Dense(10, input_dim=self.state_size, activation="relu"))
+        model.add(layers.Dense(self.action_size, activation="linear"))
+        model.compile(loss="mse", optimizer=optimizers.Adam(lr=self.learning_rate))
+        return model
 
-state, info = env.reset()
+    def add_memory(self, new_state, reward, done, state, action):
+        self.memory.append((new_state, reward, done, state, action))
 
-BATCH_SIZE = 10
+    def action(self, state):
+        if np.random.rand() > self.epsilon:
+            return np.random.randint(0, 4)
+        return np.argmax(self.model.predict(state))
+
+    def pred(self, state):
+        return np.argmax(self.model.predict(state))
+
+    def replay(self, batch_size):
+        minibatch = random.sample(self.memory, batch_size)
+        for new_state, reward, done, state, action in minibatch:
+            target = reward
+            if not done:
+                target = reward + self.gamma * np.amax(self.model.predict(new_state))
+            target_f = self.model.predict(state)
+            target_f[0][action] = target
+            self.model.fit(state, target_f, epochs=1, verbose=0)
+
+        if self.epsilon > self.min_eps:
+            self.epsilon = (self.max_eps - self.min_eps) * np.exp(
+                -self.eps_decay * episode
+            ) + self.min_eps
+
+        self.epsilon_lst.append(self.epsilon)
+
+    def load(self, name):
+        self.model.load_weights(name)
+
+    def save(self, name):
+        self.model.save_weights(name)
 
 
-class DQN(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.stack = nn.Sequential(nn.Linear(1, 64), nn.ReLU(), nn.Linear(64, 4))
+agent = Agent(state_size, action_size)
 
-    def forward(self, x):
-        return self.stack(x)
+reward_lst = []
+for episode in range(train_episodes):
+    state = env.reset()
+    state_arr = np.zeros(state_size)
+    state_arr[state] = 1
+    state = np.reshape(state_arr, [1, state_size])
+    reward = 0
+    done = False
+    for t in range(max_steps):
+        # env.render()
+        action = agent.action(state)
+        new_state, reward, done, info = env.step(action)
+        new_state_arr = np.zeros(state_size)
+        new_state_arr[new_state] = 1
+        new_state = np.reshape(new_state_arr, [1, state_size])
+        agent.add_memory(new_state, reward, done, state, action)
+        state = new_state
 
-
-class Network:
-    def __init__(self) -> None:
-        self.model = DQN()
-        self.targetModel = DQN()
-        self.targetModel.load_state_dict(self.model.state_dict())
-        self.steps = 0
-        self.memory = deque([], maxlen=100_000)
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4)
-        self.criterion = nn.MSELoss()
-        self.networkSteps = 0
-        self.randomSteps = 0
-
-    def getAction(self, state):
-        epsilon = 0.0001 + 0.9 * np.exp(-1e-4 * self.steps)
-        self.steps += 1
-        if np.random.random() < epsilon:
-            self.randomSteps += 1
-            return env.action_space.sample()
-        else:
-            self.networkSteps += 1
-            with torch.no_grad():
-                self.model.eval()
-                return self.model(torch.tensor([state], dtype=torch.float)).argmax().item()
-
-    def train(self, state, nextState, action, reward, done):
-        self.memory.append(
-            (
-                state,
-                nextState,
-                action,
-                reward,
-                done,
+        if done:
+            print(
+                f"Episode: {episode:4}/{train_episodes} and step: {t:4}. Eps: {float(agent.epsilon):.2}, reward {reward}"
             )
-        )
-        if len(self.memory) < BATCH_SIZE:
-            return
-        batch = random.sample(self.memory, BATCH_SIZE)
-        states, nextStates, actions, rewards, dones = zip(*batch)
+            break
 
-        states = torch.tensor(states, dtype=torch.float).unsqueeze(1)
-        nextStates = torch.tensor(nextStates, dtype=torch.float).unsqueeze(1)
-        actions = torch.tensor(actions, dtype=torch.long)
-        rewards = torch.tensor(rewards, dtype=torch.float)
-        dones = torch.tensor(dones, dtype=torch.int)
+    reward_lst.append(reward)
 
-        qvalues = self.model(states)
-        qvalues = qvalues.gather(1, actions.unsqueeze(1)).squeeze()
+    if len(agent.memory) > batch_size:
+        agent.replay(batch_size)
 
-        nextQValues = self.targetModel(nextStates).detach().max(1)[0]
-        targets = rewards + (0.99 * nextQValues * (1 - dones))
+print(" Train mean % score= ", round(100 * np.mean(reward_lst), 1))
 
-        loss = self.criterion(qvalues, targets)
+# test
+test_wins = []
+for episode in range(test_episodes):
+    state = env.reset()
+    state_arr = np.zeros(state_size)
+    state_arr[state] = 1
+    state = np.reshape(state_arr, [1, state_size])
+    done = False
+    reward = 0
+    state_lst = []
+    state_lst.append(state)
+    print("******* EPISODE ", episode, " *******")
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+    for step in range(max_steps):
+        action = agent.pred(state)
+        new_state, reward, done, info = env.step(action)
+        new_state_arr = np.zeros(state_size)
+        new_state_arr[new_state] = 1
+        new_state = np.reshape(new_state_arr, [1, state_size])
+        state = new_state
+        state_lst.append(state)
+        if done:
+            print(reward)
+            # env.render()
+            break
 
-
-
-
-
-        
-        
-
-    def updateTarget(self):
-        self.targetModel.load_state_dict(self.model.state_dict())
-
-
-network = Network()
-ngames = 0
-for i in tqdm.trange(100000):
-
-    action = network.getAction(state)
-    nextState, reward, terminated, truncated, info = env.step(action)
-
-    network.train(state, nextState, action, reward, terminated)
-
-    state = nextState
-
-    if truncated or terminated:
-        networkSteps, randomSteps = network.networkSteps, network.randomSteps
-        network.networkSteps = 0
-        network.randomSteps = 0
-        ngames += 1
-        # print(ngames, network.steps, round(networkSteps / (networkSteps + randomSteps) * 100.0, 2))
-        if ngames % 10 == 0:
-            network.updateTarget()
-        state, info = env.reset()
-
-
+    test_wins.append(reward)
 env.close()
-env = gym.make(
-    "FrozenLake-v1", desc=None, map_name="4x4", is_slippery=False, render_mode="human"
-)
-state, _ = env.reset()
 
-while True:
-    action = network.getAction(state)
-    nextState, reward, terminated, truncated, info = env.step(action)
+print(" Test mean % score= ", int(100 * np.mean(test_wins)))
 
-    network.train(state, nextState, action, reward, terminated)
+fig = plt.figure(figsize=(10, 12))
+matplotlib.rcParams.clear()
+matplotlib.rcParams.update({"font.size": 22})
+plt.subplot(311)
+plt.scatter(list(range(len(reward_lst))), reward_lst, s=0.2)
+plt.title("4x4 Frozen Lake Result(DQN) \n \nTrain Score")
+plt.ylabel("Score")
+plt.xlabel("Episode")
 
-    state = nextState
-    if truncated or terminated:
-        networkSteps, randomSteps = network.networkSteps, network.randomSteps
-        network.networkSteps = 0
-        network.randomSteps = 0
-        ngames += 1
-        print(ngames, network.steps, round(networkSteps / (networkSteps + randomSteps) * 100.0, 2))
-        if ngames % 10 == 0:
-            network.updateTarget()
-        state, info = env.reset()
+plt.subplot(312)
+plt.scatter(list(range(len(agent.epsilon_lst))), agent.epsilon_lst, s=0.2)
+plt.title("Epsilon")
+plt.ylabel("Epsilon")
+plt.xlabel("Episode")
+
+plt.subplot(313)
+plt.scatter(list(range(len(test_wins))), test_wins, s=0.5)
+plt.title("Test Score")
+plt.ylabel("Score")
+plt.xlabel("Episode")
+plt.ylim((0, 1.1))
+plt.savefig("result.png", dpi=300)
+plt.show()
